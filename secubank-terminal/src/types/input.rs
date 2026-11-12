@@ -3,9 +3,11 @@
 use std::fmt;
 use std::str::FromStr;
 
+use passwords::analyzer::is_common_password;
 use secrecy::{ExposeSecret, SecretString};
 use unicode_normalization::UnicodeNormalization;
 use unicode_normalization::char::is_combining_mark;
+use zxcvbn::{Score, zxcvbn};
 
 /// A Keycloak username of 3 to 32 characters from `[a-z0-9._-]`, lowercased on parse (Keycloak
 /// lowercases usernames).
@@ -202,7 +204,24 @@ fn check_new_password(
     first_name: &PersonName,
     last_name: &PersonName,
 ) -> Result<(), InvalidNewPassword> {
-    todo!()
+    // check common password
+    if is_common_password(password.expose_secret()) {
+        return Err(InvalidNewPassword::Common);
+    }
+    // check weak password
+    let estimate = zxcvbn(
+        password.expose_secret(),
+        &[
+            username.as_str(),
+            email.as_str(),
+            first_name.as_str(),
+            last_name.as_str(),
+        ],
+    );
+    if estimate.score() < Score::Three {
+        return Err(InvalidNewPassword::Weak);
+    }
+    Ok(())
 }
 
 /// A registration request made only of checked inputs, so nothing else can reach Keycloak's user

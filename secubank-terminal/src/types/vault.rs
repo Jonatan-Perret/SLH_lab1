@@ -24,7 +24,19 @@ impl FromStr for VaultId {
     ///
     /// * `s`: The ID as typed at the terminal or read from `vaults.toml`.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        todo!()
+        // size check
+        if s.chars().count() != 5 {
+            return Err(InvalidVaultId);
+        }
+        // v- check
+        if !s.starts_with("V-") {
+            return Err(InvalidVaultId);
+        }
+        // digits check
+        if s[2..].chars().any(|c| !c.is_ascii_digit()) {
+            return Err(InvalidVaultId);
+        }
+        Ok(VaultId(s.to_string()))
     }
 }
 
