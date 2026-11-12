@@ -1,0 +1,3 @@
+# Use clippy configuration instead of #[allow(...)] in the code itself.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

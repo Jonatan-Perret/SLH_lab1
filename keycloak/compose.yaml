@@ -1,0 +1,29 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.3
+    # Dev mode uses HTTP only
+    command: ["start-dev", "--http-port", "7080", "--import-realm"]
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:7080:7080"
+    volumes:
+      # Dev database keeps users and console changes across restarts.
+      # Use `docker compose down -v` to reset Keycloak to the realm export.
+      - keycloak-data:/opt/keycloak/data
+      # Realm exports are imported on first start only.
+      - ./realm:/opt/keycloak/data/import:ro,z
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready
+          HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && grep
+          -q '"UP"' <&3
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+volumes:
+  keycloak-data:

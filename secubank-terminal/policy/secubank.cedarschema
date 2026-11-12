@@ -1,0 +1,39 @@
+// SecuBank policy schema.
+
+// Realm roles and vault classifications.
+entity Role enum ["client", "bank-security-officer"];
+entity Clearance enum ["standard", "elite", "premium"];
+entity Classification enum ["standard", "reinforced", "high-security"];
+
+// Resource of the `ActAsOfficer` and `ActAsClient` actions.
+entity Terminal enum ["vault-room"];
+
+// A Keycloak user as the requester, a new owner or a vault owner.
+// Its parents are its realm roles and clearances.
+entity User in [Role, Clearance] = {
+  enabled: Bool,
+};
+
+// A vault from `vaults.toml`. The dial code hash itself never goes to Cedar.
+entity Vault = {
+  classification: Classification,
+  owner?: User,
+  has_dial_code: Bool,
+};
+
+// Actions checked by `authorize`.
+action ActAsOfficer, ActAsClient appliesTo {
+  principal: User,
+  resource: Terminal,
+};
+
+// Actions checked by `decide`.
+action AssignOwner appliesTo {
+  principal: User,
+  resource: Vault,
+  context: { new_owner: User },
+};
+action SetDialCode, Open appliesTo {
+  principal: User,
+  resource: Vault,
+};

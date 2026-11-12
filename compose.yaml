@@ -1,0 +1,10 @@
+# SecuBank infrastructure
+# Commands:
+#   docker compose up -d --wait                                 # Start Keycloak on http://localhost:7080
+#   cd secubank-terminal && cargo run                           # Start the terminal on the host
+#   cd secubank-terminal && cp vaults.example.toml vaults.toml  # Create or reset the vault file
+#   vim secubank-terminal/vaults.toml                           # Administer vaults and classifications
+name: secubank
+
+include:
+  - keycloak/compose.yaml

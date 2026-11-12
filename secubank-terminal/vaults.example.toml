@@ -1,0 +1,32 @@
+# SecuBank vault file. Copy it to vaults.toml to create or reset the vaults:
+#
+#   cp vaults.example.toml vaults.toml
+#
+# Only the admin edits vaults.toml by hand. The terminal rewrites it after each
+# change.
+#
+# One [[vault]] entry per vault:
+#   id              "V-" and three digits, unique in the file
+#   classification  "standard", "reinforced" or "high-security"
+#                   ("standard" when missing)
+#   owner           Keycloak user ID (sub) of the owner (optional, set by an
+#                   officer from the terminal)
+#   dial_code_hash  Argon2id PHC string (optional, set by the owner from the
+#                   terminal, only with an owner)
+#
+# To return a vault to no owner, remove both its owner and dial_code_hash.
+
+[[vault]]
+id = "V-001"
+classification = "standard"
+
+[[vault]]
+id = "V-002"
+classification = "reinforced"
+
+[[vault]]
+id = "V-003"
+classification = "high-security"
+
+[[vault]]
+id = "V-004"
