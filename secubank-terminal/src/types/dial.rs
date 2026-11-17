@@ -46,7 +46,60 @@ impl FromStr for DialCode {
     ///
     /// * `s`: The dial code as typed.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        todo!()
+        // check length
+        if s.len() < 15 || s.len() > 19 {
+            return Err(InvalidDialCode);
+        }
+
+        // use a regex to parse the code
+        let re = regex::Regex::new(
+            r"^4([LR])([0-9]{1,2})-3([LR])([0-9]{1,2})-2([LR])([0-9]{1,2})-1([LR])([0-9]{1,2})$",
+        )
+        .map_err(|_| InvalidDialCode)?;
+        let caps = re.captures(s).ok_or(InvalidDialCode)?;
+
+        // check that the directions alternate
+        let dir1 = caps.get(1).ok_or(InvalidDialCode)?.as_str();
+        let dir2 = caps.get(3).ok_or(InvalidDialCode)?.as_str();
+        let dir3 = caps.get(5).ok_or(InvalidDialCode)?.as_str();
+        let dir4 = caps.get(7).ok_or(InvalidDialCode)?.as_str();
+        if dir1 == dir2 || dir2 == dir3 || dir3 == dir4 {
+            return Err(InvalidDialCode);
+        }
+
+        // parse the numbers
+        let num1: u8 = caps
+            .get(2)
+            .ok_or(InvalidDialCode)?
+            .as_str()
+            .parse()
+            .map_err(|_| InvalidDialCode)?;
+        let num2: u8 = caps
+            .get(4)
+            .ok_or(InvalidDialCode)?
+            .as_str()
+            .parse()
+            .map_err(|_| InvalidDialCode)?;
+        let num3: u8 = caps
+            .get(6)
+            .ok_or(InvalidDialCode)?
+            .as_str()
+            .parse()
+            .map_err(|_| InvalidDialCode)?;
+        let num4: u8 = caps
+            .get(8)
+            .ok_or(InvalidDialCode)?
+            .as_str()
+            .parse()
+            .map_err(|_| InvalidDialCode)?;
+        Ok(DialCode {
+            start: if dir1 == "L" {
+                Direction::L
+            } else {
+                Direction::R
+            },
+            numbers: [num1, num2, num3, num4],
+        })
     }
 }
 
@@ -57,7 +110,14 @@ impl DialCode {
     /// `4L05-3R12-2L20-1R33`). Two spellings of a code, such as `4L5-…` and `4L05-…`, give the same
     /// canonical form.
     pub fn canonical(&self) -> String {
-        todo!()
+        let (dir1, dir2) = match self.start {
+            Direction::L => ("L", "R"),
+            Direction::R => ("R", "L"),
+        };
+        format!(
+            "4{dir1}{:02}-3{dir2}{:02}-2{dir1}{:02}-1{dir2}{:02}",
+            self.numbers[0], self.numbers[1], self.numbers[2], self.numbers[3]
+        )
     }
 }
 
@@ -115,6 +175,123 @@ mod tests {
             "4L95-3L12-2R20-1L33", // not alternating
             "4L95-3R12-2L20",      // 3 steps
             "4L100-3R12-2L20-1R3", // above 99
+        ];
+        for input in invalid {
+            assert!(input.parse::<DialCode>().is_err(), "input {input:?}");
+        }
+    }
+
+    #[test]
+    fn dial_code_keeps_the_starting_direction_and_numbers() {
+        let code: DialCode = "4R0-3L7-2R0-1L9".parse().expect("valid code");
+        assert_eq!(code.start, Direction::R);
+        assert_eq!(code.numbers, [0, 7, 0, 9]);
+    }
+
+    #[test]
+    fn dial_code_accepts_bounds_and_mixed_widths() {
+        let cases = [
+            ("4L0-3R0-2L0-1R0", [0, 0, 0, 0]),
+            ("4L99-3R99-2L99-1R99", [99, 99, 99, 99]),
+            ("4L00-3R00-2L00-1R00", [0, 0, 0, 0]),
+            ("4L5-3R05-2L50-1R9", [5, 5, 50, 9]),
+        ];
+        for (input, numbers) in cases {
+            let code: DialCode = input.parse().expect("valid code");
+            assert_eq!(code.numbers, numbers, "input {input:?}");
+        }
+    }
+
+    #[test]
+    fn dial_code_canonical_pads_every_number() {
+        let code: DialCode = "4R5-3L0-2R9-1L1".parse().expect("valid code");
+        assert_eq!(code.canonical(), "4R05-3L00-2R09-1L01");
+    }
+
+    #[test]
+    fn dial_code_canonical_is_a_fixed_point() {
+        for input in [
+            "4L95-3R12-2L20-1R33",
+            "4R0-3L7-2R0-1L9",
+            "4L5-3R05-2L50-1R9",
+        ] {
+            let code: DialCode = input.parse().expect("valid code");
+            let canonical = code.canonical();
+            let again: DialCode = canonical.parse().expect("canonical form parses");
+            assert_eq!(again.canonical(), canonical, "input {input:?}");
+        }
+    }
+
+    #[test]
+    fn dial_code_rejects_directions_that_do_not_alternate() {
+        let invalid = [
+            "4L95-3L12-2L20-1L33", // all left
+            "4R95-3R12-2R20-1R33", // all right
+            "4L95-3R12-2R20-1L33", // breaks at step 3
+            "4L95-3R12-2L20-1L33", // breaks at step 4
+        ];
+        for input in invalid {
+            assert!(input.parse::<DialCode>().is_err(), "input {input:?}");
+        }
+    }
+
+    #[test]
+    fn dial_code_rejects_bad_directions() {
+        let invalid = [
+            "4l95-3r12-2l20-1r33",  // lowercase
+            "4/95-3/12-2/20-1/33",  // not a direction
+            "4X95-3R12-2L20-1R33",  // other letter
+            "495-3R12-2L20-1R33",   // missing direction
+            "4LR95-3R12-2L20-1R33", // two directions
+        ];
+        for input in invalid {
+            assert!(input.parse::<DialCode>().is_err(), "input {input:?}");
+        }
+    }
+
+    #[test]
+    fn dial_code_rejects_bad_numbers() {
+        let invalid = [
+            "4L-3R12-2L20-1R33",     // missing number
+            "4L005-3R12-2L20-1R33",  // three digits
+            "4L+5-3R12-2L20-1R33",   // sign
+            "4L-5-3R12-2L20-1R33",   // negative
+            "4L9a-3R12-2L20-1R33",   // letter
+            "4L٩٥-3R12-2L20-1R33",   // non-ASCII digits
+            "4L９５-3R12-2L20-1R33", // fullwidth digits
+        ];
+        for input in invalid {
+            assert!(input.parse::<DialCode>().is_err(), "input {input:?}");
+        }
+    }
+
+    #[test]
+    fn dial_code_rejects_bad_turns_and_steps() {
+        let invalid = [
+            "1L95-2R12-3L20-4R33",      // turns reversed
+            "4L95-4R12-2L20-1R33",      // repeated turn
+            "5L95-3R12-2L20-1R33",      // turn out of range
+            "4L95-3R12-2L20-1R33-0L00", // five steps
+            "4L95",                     // one step
+        ];
+        for input in invalid {
+            assert!(input.parse::<DialCode>().is_err(), "input {input:?}");
+        }
+    }
+
+    #[test]
+    fn dial_code_rejects_bad_separators_and_surroundings() {
+        let invalid = [
+            " 4L95-3R12-2L20-1R33",  // leading space
+            "4L95-3R12-2L20-1R33 ",  // trailing space
+            "4L95-3R12-2L20-1R33\n", // trailing newline
+            "-4L95-3R12-2L20-1R33",  // leading dash
+            "4L95-3R12-2L20-1R33-",  // trailing dash
+            "4L95--3R12-2L20-1R33",  // double dash
+            "4L95 3R12 2L20 1R33",   // spaces instead of dashes
+            "4L95_3R12_2L20_1R33",   // underscores
+            "4L95-3R12-2L20-1R33x",  // trailing garbage
+            "4L95‐3R12‐2L20‐1R33",   // Unicode hyphen
         ];
         for input in invalid {
             assert!(input.parse::<DialCode>().is_err(), "input {input:?}");
